@@ -1,0 +1,69 @@
+package com.notzed.aiproject.service;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class RAGService {
+
+    private final ChatClient chatClient;
+    private final VectorStore vectorStore;
+
+    public String askAI(String prompt){
+
+        String template = """
+                You are a music recommendation assistant.
+                
+                STRICT RULES:
+                - You ONLY know the songs listed in the Context section below.
+                - You MUST recommend ONLY songs that appear in the Context.
+                - NEVER mention any song outside of the Context.
+                - NEVER mention any artist or band name — you don't know them.
+                - The context has the song title — use EXACTLY that title.
+                - If context is provided, ALWAYS recommend from it. Never say I don't know.
+                
+                Context:
+                {context}
+                
+                Based ONLY on the context above, recommend the song in a warm friendly tone.
+                Mention the exact song title and explain why it matches the feeling.
+                """;
+
+        List<Document> documents = vectorStore.similaritySearch(SearchRequest.builder()
+                        .query(prompt)
+                        .topK(3)
+                        .similarityThreshold(0.3)
+                        .build());
+
+        if(documents.isEmpty()){
+            return "Sorry, I couldn't find any matching songs for that feeling!";
+        }
+
+        String context = documents.stream()
+                        .map(d -> "Song Title: " + d.getMetadata().get("title") +
+                                "\nGenre: " + d.getMetadata().get("genre") +
+                                "\nDescription: " + d.getText())
+                        .collect(Collectors.joining("\n\n"));
+
+        System.out.println("Final Context:\n" + context);
+
+        PromptTemplate promptTemplate =new PromptTemplate(template);
+        String systemPrompt = promptTemplate.render(Map.of("context", context));
+
+        return chatClient.prompt()
+                .system(systemPrompt)
+                .user(prompt)
+                .call()
+                .content();
+    }
+}
