@@ -15,6 +15,6 @@ public class VibeController {
 
     @GetMapping
     public String askChat(@RequestParam String feeling){
-        return ragService.askAI(feeling);
+        return ragService.askAIForVibe(feeling);
     }
 }
