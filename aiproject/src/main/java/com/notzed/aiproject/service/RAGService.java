@@ -1,7 +1,11 @@
 package com.notzed.aiproject.service;
 
+import com.notzed.aiproject.dto.ChatDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.SafeGuardAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
@@ -22,9 +26,37 @@ public class RAGService {
 
     private final ChatClient chatClient;
     private final VectorStore vectorStore;
+    private final ChatMemory chatMemory;
 
     @Value("classpath:policy.pdf")
     Resource pdfFile;
+
+
+    public String chatWithAI(ChatDto request, String userId){
+
+        String message = request.getMessage();
+
+        String systemPrompt =String.format("""
+                You are a friendly chatting assistant.
+                IMPORTANT: The current user's ID is "%s".
+                """,userId);
+
+        return chatClient.prompt()
+                .system(systemPrompt)
+                .user(message)
+                .advisors(
+                        new SafeGuardAdvisor(List.of("competitor")),
+
+                        MessageChatMemoryAdvisor.builder(chatMemory)
+                                .conversationId(userId)
+                                .build()
+
+                )
+                .call()
+                .content();
+
+
+    }
 
 
     public String askAIForVibe(String prompt){
@@ -71,6 +103,7 @@ public class RAGService {
         return chatClient.prompt()
                 .system(systemPrompt)
                 .user(prompt)
+                .advisors()
                 .call()
                 .content();
     }
