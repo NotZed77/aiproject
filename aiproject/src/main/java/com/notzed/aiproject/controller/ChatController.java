@@ -17,4 +17,16 @@ public class ChatController {
         return ragService.chatWithAI(request, userId);
     }
 
+    @PostMapping("/stocks")
+    public String chatForStocks(@RequestParam String question){
+        return ragService.chatWithAIForStocks(question);
+    }
+
+    @PostMapping("/router")
+    public String routerChat(@RequestParam String ques){
+        return ragService.askAIAboutManual(ques);
+    }
+
+
+
 }

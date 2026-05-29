@@ -1,6 +1,8 @@
 package com.notzed.aiproject.service;
 
 import com.notzed.aiproject.dto.ChatDto;
+import com.notzed.aiproject.tools.RouterTools;
+import com.notzed.aiproject.tools.StockTools;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -27,10 +29,11 @@ public class RAGService {
     private final ChatClient chatClient;
     private final VectorStore vectorStore;
     private final ChatMemory chatMemory;
+    private final StockTools stockTools;
+    private final RouterTools routerTools;
 
     @Value("classpath:policy.pdf")
     Resource pdfFile;
-
 
     public String chatWithAI(ChatDto request, String userId){
 
@@ -54,9 +57,8 @@ public class RAGService {
                 )
                 .call()
                 .content();
-
-
     }
+
 
 
     public String askAIForVibe(String prompt){
@@ -120,7 +122,32 @@ public class RAGService {
         vectorStore.add(chunks);
     }
 
-    public String askAIForHandbook(String prompt){
+
+
+    public String chatWithAIForStocks(String prompt){
+        String systemPrompt = """
+                You are an AI assistant helping a developer to buy stocks.
+                
+                Rules:
+                - Use ONLY the information provided in the context
+                - The output generated SHOULD be "I checked the price (e.g, it was 150)  and bought X (e.g, 10) shares for you."
+                - Do NOT introduce new concepts or facts
+                
+                Answer in a friendly, conversational tone.
+                """;
+
+        return chatClient.prompt()
+                .system(systemPrompt)
+                .user(prompt)
+                .tools(stockTools)
+                .call()
+                .content();
+    }
+
+
+
+
+    public String askAIAboutEmployeeHandbook(String prompt){
         String template = """
                 You are an AI assistant helping a developer.
                 
@@ -154,6 +181,45 @@ public class RAGService {
         return chatClient.prompt()
                 .system(systemPrompt)
                 .user(prompt)
+                .call()
+                .content();
+    }
+
+    public String askAIAboutManual(String prompt){
+        String template = """
+                You are an AI assistant helping a developer.
+                
+                Rules:
+                - Use ONLY the information provided in the context
+                - You MAY rephrase, summarize, and explain in the natural language
+                - Do NOT introduce new concepts or facts
+                - If multiple context sections are relevant, combine them into a single explanation.
+                - If the answer is not present, say "I don't know"
+                
+                Context:
+                {context}
+                
+                Answer in a friendly, conversational tone.
+                """;
+
+        List<Document> documents = vectorStore.similaritySearch(SearchRequest.builder()
+                .query(prompt)
+                .topK(3)
+                .similarityThreshold(0.3)
+                .filterExpression("file_name == 'Internet_Router_User_Manual.pdf'")
+                .build());
+
+        String context = documents.stream()
+                .map(Document::getText)
+                .collect(Collectors.joining("\n\n"));
+
+        PromptTemplate promptTemplate = new PromptTemplate(template);
+        String systemPrompt = promptTemplate.render(Map.of("context", context));
+
+        return chatClient.prompt()
+                .system(systemPrompt)
+                .user(prompt)
+                .tools(routerTools)
                 .call()
                 .content();
     }

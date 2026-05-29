@@ -18,7 +18,7 @@ public class EmployeeHandbookController {
 
     @GetMapping
     public String chat(@RequestParam String question){
-        return ragService.askAIForHandbook(question);
+        return ragService.askAIAboutEmployeeHandbook(question);
     }
 
 
